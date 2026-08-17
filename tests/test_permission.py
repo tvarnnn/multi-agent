@@ -112,6 +112,21 @@ def test_resolved_path_none_on_deny(evaluator, workspace):
     assert decision.resolved_path is None
 
 
+@pytest.mark.parametrize("tool", ["test.run", "lint.run", "typecheck.run"])
+def test_coder_and_reviewer_can_run_validation_tools(evaluator, workspace, tool):
+    for role in (Role.CODER, Role.REVIEWER):
+        call = ToolCall(role=role, tool_name=tool, scope_root=(workspace / "MyProj").resolve())
+        decision = evaluator.evaluate(call, SessionMode.AUTO)
+        assert decision.permission == ToolPermission.ALLOW
+
+
+@pytest.mark.parametrize("tool", ["test.run", "lint.run", "typecheck.run"])
+def test_planner_cannot_run_validation_tools(evaluator, workspace, tool):
+    call = ToolCall(role=Role.PLANNER, tool_name=tool, scope_root=(workspace / "MyProj").resolve())
+    decision = evaluator.evaluate(call, SessionMode.AUTO)
+    assert decision.permission == ToolPermission.DENY
+
+
 def test_auto_mode_does_not_loosen_below_static_table(workspace):
     # A custom table entry pinned to CONFIRM must never become ALLOW under
     # AUTO - AUTO's ceiling is ALLOW, meaning "no additional restriction,"

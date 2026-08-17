@@ -26,6 +26,7 @@ from .model_schemas import (
     parse_planner_output,
     parse_reviewer_output,
 )
+from .stall_detection import is_negligible_diff, is_repeated_identical_test_failure, is_repeated_review_rejection
 from .states import State
 from .validation import Validator
 
@@ -53,12 +54,18 @@ class Orchestrator:
         self._max_clarification_rounds = max_clarification_rounds
         self._max_fix_iterations = max_fix_iterations
         self._state = State.RECEIVE_REQUEST
+        self._review_issue_history: list = []
+        self._validation_detail_history: list = []
+        self._last_file_writes = None
 
     @property
     def state(self) -> State:
         return self._state
 
     def run(self, spec_id: str, user_request: str) -> OrchestratorResult:
+        self._review_issue_history = []
+        self._validation_detail_history = []
+        self._last_file_writes = None
         self._event_log.emit(EventType.USER_REQUEST_RECEIVED, "user", {"spec_id": spec_id, "request": user_request})
         self._user_event(user_request)
         self._transition(State.PLAN)
@@ -75,6 +82,9 @@ class Orchestrator:
         amendment rather than a status query or an answer to a pending
         question; the state transitions and spec-versioning behavior are
         identical either way."""
+        self._review_issue_history = []
+        self._validation_detail_history = []
+        self._last_file_writes = None
         self._user_event(amendment_request)
         self._transition(State.AMEND_REQUIREMENTS)
         plan_output = self._invoke_with_retry(
@@ -145,6 +155,12 @@ class Orchestrator:
                                   {"expected": exc.expected, "actual": exc.actual})
             return self._stuck(spec_id, f"coder attempt pinned to wrong specification version: {exc}")
 
+        if fix_iteration > 0 and is_negligible_diff(self._last_file_writes, coder_output.file_writes):
+            return self._stuck(
+                spec_id, "the fix attempt produced a negligible diff from the previous attempt - no progress detected"
+            )
+        self._last_file_writes = coder_output.file_writes
+
         failed = self._apply_file_writes(coder_output)
         if failed is not None:
             return self._stuck(spec_id, f"file write failed during implement: {failed.error}")
@@ -164,6 +180,7 @@ class Orchestrator:
                           fix_iteration: int) -> OrchestratorResult:
         self._transition(State.TEST)
         validation_result = self._validator.validate(self._project_root, spec)
+        self._validation_detail_history.append(validation_result.details)
         self._transition(State.REVIEW)
         reviewer_output = self._invoke_with_retry(
             "reviewer",
@@ -182,6 +199,7 @@ class Orchestrator:
         if reviewer_output.decision == "APPROVE":
             return self._final_validation(spec_id, spec, coder_output, validation_result,
                                            reviewer_output, fix_iteration)
+        self._review_issue_history.append(tuple(issue.description for issue in reviewer_output.issues))
         return self._feedback(spec_id, spec, reviewer_output, fix_iteration)
 
     def _final_validation(self, spec_id, spec, coder_output, validation_result, reviewer_output, fix_iteration):
@@ -198,6 +216,10 @@ class Orchestrator:
         self._transition(State.FEEDBACK)
         if fix_iteration >= self._max_fix_iterations:
             return self._stuck(spec_id, f"fix loop exceeded {self._max_fix_iterations} iterations")
+        if is_repeated_review_rejection(tuple(self._review_issue_history)):
+            return self._stuck(spec_id, "reviewer repeated the same rejection reasons - no progress detected")
+        if is_repeated_identical_test_failure(tuple(self._validation_detail_history)):
+            return self._stuck(spec_id, "the same validation failure recurred - no progress detected")
         return self._implement(spec_id, spec, reviewer_output, fix_iteration + 1)
 
     def _blocked(self, spec_id, spec, coder_output: CoderBlocked, fix_iteration, clarification_round):

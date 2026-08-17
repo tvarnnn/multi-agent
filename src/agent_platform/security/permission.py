@@ -48,6 +48,9 @@ def _default_tool_table() -> ToolTable:
             table[(role, tool)] = ToolPermission.ALLOW
     table[(Role.CODER, "filesystem.write")] = ToolPermission.ALLOW
     table[(Role.CODER, "filesystem.create_directory")] = ToolPermission.ALLOW
+    for tool in ("test.run", "lint.run", "typecheck.run"):
+        table[(Role.CODER, tool)] = ToolPermission.ALLOW
+        table[(Role.REVIEWER, tool)] = ToolPermission.ALLOW
     return table
 
 

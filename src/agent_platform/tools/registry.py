@@ -1,17 +1,22 @@
-"""Typed tool registry: filesystem.read/write/create_directory/list and
-read-only git.status/diff/log/branch. No shell.run, no git write
-operations - those simply have no ToolSpec here, so a lookup for them
-returns None and the gateway reports "unknown_tool" before permission is
-even evaluated. (Permission evaluation would deny them too, per Phase 0's
-ABSOLUTE_DENY_TOOLS - not having a handler is defense in depth, not the
-only defense.)
+"""Typed tool registry: filesystem.read/write/create_directory/list,
+read-only git.status/diff/log/branch, and test.run/lint.run/typecheck.run.
+No shell.run, no git write operations, no arbitrary executable - those
+simply have no ToolSpec here (git writes), or (validation tools) accept
+no argument that could select an executable or command at all - see
+process_execution.py for what that execution boundary does and doesn't
+guarantee. A lookup for an unregistered tool returns None and the gateway
+reports "unknown_tool" before permission is even evaluated. (Permission
+evaluation would deny git writes too, per Phase 0's ABSOLUTE_DENY_TOOLS -
+not having a handler is defense in depth, not the only defense.)
 """
 from __future__ import annotations
 
 import subprocess
+import sys
 from pathlib import Path
 from typing import Optional
 
+from .process_execution import run_process
 from .schemas import ToolArgumentError, ToolExecutionContext, ToolPreconditionError, ToolSpec
 
 
@@ -72,10 +77,21 @@ def _execute_filesystem_list(args: dict, ctx: ToolExecutionContext) -> dict:
     return {"entries": sorted(p.name for p in ctx.resolved_path.iterdir())}
 
 
+# Neutralizes two confirmed config-driven code-execution vectors on
+# otherwise-read-only git operations: a malicious .git/config can set
+# core.fsmonitor or diff.external to an arbitrary command, which git
+# will execute during plain `status`/`diff` calls. --no-pager is
+# standard hardening for any scripted/non-interactive git invocation.
+# Verified: a pre-commit hook does NOT fire on these read-only commands,
+# so it is not included here - only confirmed-exploitable vectors are
+# neutralized, not a speculative list.
+_GIT_SAFETY_FLAGS = ["--no-pager", "-c", "core.fsmonitor=", "-c", "diff.external="]
+
+
 def _git_toplevel(cwd: Path) -> Optional[Path]:
     try:
         result = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
+            ["git", *_GIT_SAFETY_FLAGS, "rev-parse", "--show-toplevel"],
             cwd=str(cwd), capture_output=True, text=True, timeout=10,
         )
     except (OSError, subprocess.TimeoutExpired):
@@ -96,7 +112,8 @@ def _git_scoped_root(ctx: ToolExecutionContext) -> Optional[Path]:
 
 
 def _run_git_readonly(args: list[str], cwd: Path) -> str:
-    result = subprocess.run(["git", *args], cwd=str(cwd), capture_output=True, text=True, timeout=10)
+    result = subprocess.run(["git", *_GIT_SAFETY_FLAGS, *args], cwd=str(cwd),
+                             capture_output=True, text=True, timeout=10)
     return result.stdout
 
 
@@ -126,6 +143,63 @@ def _execute_git_branch(args: dict, ctx: ToolExecutionContext) -> dict:
     if scoped is None:
         return {"scoped": False, "message": "no git repository scoped to this project"}
     return {"scoped": True, "output": _run_git_readonly(["branch", "--show-current"], scoped).strip()}
+
+
+_VALIDATION_TOOL_COMMANDS: dict[str, list[str]] = {
+    # -P (isolated mode, Python 3.11+): does NOT prepend the current
+    # working directory to sys.path. Without it, "python -m pytest" run
+    # with cwd set to the sandboxed (Coder-controlled) project directory
+    # will import a same-named pytest.py FROM THAT PROJECT instead of the
+    # real installed package - verified exploitable on this machine
+    # before this fix, verified closed after it (see
+    # test_security_executable_substitution.py).
+    "test.run": [sys.executable, "-P", "-m", "pytest"],
+    "lint.run": [sys.executable, "-P", "-m", "ruff", "check"],
+    "typecheck.run": [sys.executable, "-P", "-m", "mypy"],
+}
+_DEFAULT_VALIDATION_TIMEOUT_SECONDS = 60.0
+_MAX_VALIDATION_TIMEOUT_SECONDS = 300.0
+
+
+def _validate_validation_args(args: dict) -> dict:
+    if not isinstance(args, dict):
+        raise ToolArgumentError("arguments must be an object")
+    allowed_keys = {"target", "timeout_seconds"}
+    unexpected = set(args) - allowed_keys
+    if unexpected:
+        raise ToolArgumentError(
+            f"unexpected argument(s): {sorted(unexpected)} - only 'target' and "
+            "'timeout_seconds' are accepted; the executable and command are fixed "
+            "per tool and cannot be overridden"
+        )
+    target = args.get("target")
+    if target is not None and (not isinstance(target, str) or not target.strip()):
+        raise ToolArgumentError("target, if given, must be a non-empty string")
+    timeout = args.get("timeout_seconds", _DEFAULT_VALIDATION_TIMEOUT_SECONDS)
+    if (not isinstance(timeout, (int, float)) or isinstance(timeout, bool)
+            or not (0 < timeout <= _MAX_VALIDATION_TIMEOUT_SECONDS)):
+        raise ToolArgumentError(
+            f"timeout_seconds must be a positive number no greater than {_MAX_VALIDATION_TIMEOUT_SECONDS}"
+        )
+    return {"target": target, "timeout_seconds": float(timeout)}
+
+
+def _make_validation_executor(base_argv: list[str]):
+    def execute(args: dict, ctx: ToolExecutionContext) -> dict:
+        argv = list(base_argv)
+        if ctx.resolved_path is not None:
+            argv.append(str(ctx.resolved_path))
+        result = run_process(argv, cwd=ctx.project_root, timeout_seconds=args["timeout_seconds"])
+        return {
+            "exit_code": result.exit_code,
+            "passed": (result.exit_code == 0) and not result.timed_out,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "timed_out": result.timed_out,
+            "stdout_truncated": result.stdout_truncated,
+            "stderr_truncated": result.stderr_truncated,
+        }
+    return execute
 
 
 class ToolRegistry:
@@ -172,5 +246,11 @@ def build_default_registry() -> ToolRegistry:
             name=name, validate_arguments=_validate_no_args,
             path_argument_key=None, check_preconditions=_no_precondition,
             execute=handler,
+        ))
+    for tool_name, base_argv in _VALIDATION_TOOL_COMMANDS.items():
+        registry.register(ToolSpec(
+            name=tool_name, validate_arguments=_validate_validation_args,
+            path_argument_key="target", check_preconditions=_no_precondition,
+            execute=_make_validation_executor(base_argv),
         ))
     return registry

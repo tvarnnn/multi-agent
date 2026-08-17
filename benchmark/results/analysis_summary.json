@@ -1,0 +1,381 @@
+{
+  "n_records": 20,
+  "outcome_distribution": {
+    "Configuration A (3-role, Planner=Reviewer shared weights)": {
+      "ESCALATE_TO_USER": 7,
+      "COMPLETE": 1,
+      "AWAITING_USER_INPUT": 2
+    },
+    "Configuration B (Planner/Coder/Reviewer all distinct weights)": {
+      "COMPLETE": 3,
+      "AWAITING_USER_INPUT": 2,
+      "ESCALATE_TO_USER": 5
+    }
+  },
+  "iteration_and_latency": {
+    "Configuration A (3-role, Planner=Reviewer shared weights)": {
+      "wall_clock_s": {
+        "mean": 61.773499999998606,
+        "median": 69.99249999999302,
+        "min": 34.812000000005355,
+        "max": 80.7039999999979
+      },
+      "model_call_count": {
+        "mean": 4.5,
+        "median": 5.0,
+        "min": 3,
+        "max": 6
+      },
+      "model_swap_count": {
+        "mean": 3.3,
+        "median": 4.0,
+        "min": 2,
+        "max": 4
+      },
+      "tool_invocation_count": {
+        "mean": 25.4,
+        "median": 26.0,
+        "min": 8,
+        "max": 44
+      },
+      "state_transition_count": {
+        "mean": 11.2,
+        "median": 14.0,
+        "min": 6,
+        "max": 14
+      }
+    },
+    "Configuration B (Planner/Coder/Reviewer all distinct weights)": {
+      "wall_clock_s": {
+        "mean": 45.70310000000463,
+        "median": 52.695000000006985,
+        "min": 13.23499999998603,
+        "max": 77.39000000001397
+      },
+      "model_call_count": {
+        "mean": 3.6,
+        "median": 4.0,
+        "min": 1,
+        "max": 5
+      },
+      "model_swap_count": {
+        "mean": 2.3,
+        "median": 2.5,
+        "min": 0,
+        "max": 4
+      },
+      "tool_invocation_count": {
+        "mean": 17.9,
+        "median": 17.5,
+        "min": 2,
+        "max": 32
+      },
+      "state_transition_count": {
+        "mean": 8.1,
+        "median": 8.0,
+        "min": 2,
+        "max": 14
+      }
+    }
+  },
+  "latency_by_role": {
+    "Configuration A (3-role, Planner=Reviewer shared weights)": {
+      "planner": {
+        "outer_total_s": {
+          "mean": 9.594800000001365,
+          "median": 7.375,
+          "n": 15
+        },
+        "inner_generation_s": {
+          "mean": 9.574866666666155,
+          "median": 7.35899999999674,
+          "n": 15
+        },
+        "context_retrieval_s": {
+          "mean": 0.019933333335211502,
+          "median": 0.01600000000325963,
+          "n": 15
+        },
+        "ollama_load_duration_s": {
+          "mean": 2.6167519466666667,
+          "median": 0.1408542,
+          "n": 15
+        },
+        "ollama_eval_duration_s": {
+          "mean": 4.220823333266667,
+          "median": 4.311401,
+          "n": 15
+        },
+        "derived_prompt_processing_s": {
+          "mean": 0.24930434673333332,
+          "median": 0.2083709,
+          "n": 15
+        }
+      },
+      "coder": {
+        "outer_total_s": {
+          "mean": 15.211470588238786,
+          "median": 14.75,
+          "n": 17
+        },
+        "inner_generation_s": {
+          "mean": 15.193000000002726,
+          "median": 14.73499999998603,
+          "n": 17
+        },
+        "context_retrieval_s": {
+          "mean": 0.01847058823606109,
+          "median": 0.01600000000325963,
+          "n": 17
+        },
+        "ollama_load_duration_s": {
+          "mean": 6.975142070588236,
+          "median": 6.9254305,
+          "n": 17
+        },
+        "ollama_eval_duration_s": {
+          "mean": 3.819988,
+          "median": 3.390946,
+          "n": 17
+        },
+        "derived_prompt_processing_s": {
+          "mean": 0.24388976470588236,
+          "median": 0.2311084,
+          "n": 17
+        }
+      },
+      "reviewer": {
+        "outer_total_s": {
+          "mean": 16.24023076922794,
+          "median": 15.312000000005355,
+          "n": 13
+        },
+        "inner_generation_s": {
+          "mean": 16.220076923075023,
+          "median": 15.28100000001723,
+          "n": 13
+        },
+        "context_retrieval_s": {
+          "mean": 0.02015384615291483,
+          "median": 0.01600000000325963,
+          "n": 13
+        },
+        "ollama_load_duration_s": {
+          "mean": 8.729516107692307,
+          "median": 8.7181073,
+          "n": 13
+        },
+        "ollama_eval_duration_s": {
+          "mean": 2.362467230769231,
+          "median": 1.832649,
+          "n": 13
+        },
+        "derived_prompt_processing_s": {
+          "mean": 0.9740188923076923,
+          "median": 0.534853,
+          "n": 13
+        }
+      }
+    },
+    "Configuration B (Planner/Coder/Reviewer all distinct weights)": {
+      "planner": {
+        "outer_total_s": {
+          "mean": 12.64273333333549,
+          "median": 8.5,
+          "n": 15
+        },
+        "inner_generation_s": {
+          "mean": 12.619533333329795,
+          "median": 8.48399999999674,
+          "n": 15
+        },
+        "context_retrieval_s": {
+          "mean": 0.02320000000569659,
+          "median": 0.01600000000325963,
+          "n": 15
+        },
+        "ollama_load_duration_s": {
+          "mean": 4.639058746666667,
+          "median": 0.1754573,
+          "n": 15
+        },
+        "ollama_eval_duration_s": {
+          "mean": 5.263296066533333,
+          "median": 4.104663999,
+          "n": 15
+        },
+        "derived_prompt_processing_s": {
+          "mean": 0.3843449268,
+          "median": 0.1372291,
+          "n": 15
+        }
+      },
+      "coder": {
+        "outer_total_s": {
+          "mean": 14.84366666666756,
+          "median": 15.13300000000163,
+          "n": 12
+        },
+        "inner_generation_s": {
+          "mean": 14.822916666666666,
+          "median": 15.11699999999837,
+          "n": 12
+        },
+        "context_retrieval_s": {
+          "mean": 0.020750000000892516,
+          "median": 0.01600000000325963,
+          "n": 12
+        },
+        "ollama_load_duration_s": {
+          "mean": 6.463008275,
+          "median": 6.9326103,
+          "n": 12
+        },
+        "ollama_eval_duration_s": {
+          "mean": 3.9933469166666664,
+          "median": 4.263009,
+          "n": 12
+        },
+        "derived_prompt_processing_s": {
+          "mean": 0.22279786666666668,
+          "median": 0.21572965,
+          "n": 12
+        }
+      },
+      "reviewer": {
+        "outer_total_s": {
+          "mean": 9.548666666669305,
+          "median": 9.76500000001397,
+          "n": 9
+        },
+        "inner_generation_s": {
+          "mean": 9.524333333337886,
+          "median": 9.734000000025844,
+          "n": 9
+        },
+        "context_retrieval_s": {
+          "mean": 0.024333333331418946,
+          "median": 0.030999999988125637,
+          "n": 9
+        },
+        "ollama_load_duration_s": {
+          "mean": 4.324836355555556,
+          "median": 4.7314614,
+          "n": 9
+        },
+        "ollama_eval_duration_s": {
+          "mean": 0.8660314444444445,
+          "median": 0.937517,
+          "n": 9
+        },
+        "derived_prompt_processing_s": {
+          "mean": 0.20014173333333332,
+          "median": 0.2054988,
+          "n": 9
+        }
+      }
+    }
+  },
+  "model_swap_overhead": {
+    "Configuration A (3-role, Planner=Reviewer shared weights)": {
+      "swap_load_s_mean": 7.874547709090909,
+      "swap_n": 33,
+      "no_swap_load_s_mean": 0.9543607833333334,
+      "no_swap_n": 12,
+      "derived_swap_overhead_s": 6.920186925757576
+    },
+    "Configuration B (Planner/Coder/Reviewer all distinct weights)": {
+      "swap_load_s_mean": 5.843447969565218,
+      "swap_n": 23,
+      "no_swap_load_s_mean": 3.974323415384615,
+      "no_swap_n": 13,
+      "derived_swap_overhead_s": 1.8691245541806025
+    }
+  },
+  "vram": {
+    "Configuration A (3-role, Planner=Reviewer shared weights)": {
+      "baseline_mean": 1109.1,
+      "peak_mean": 11306.6,
+      "peak_max": 11322
+    },
+    "Configuration B (Planner/Coder/Reviewer all distinct weights)": {
+      "baseline_mean": 3340.5,
+      "peak_mean": 11550.2,
+      "peak_max": 11912
+    }
+  },
+  "reviewer_internal_gate_agreement": {
+    "Configuration A (3-role, Planner=Reviewer shared weights)": {
+      "n": 13,
+      "true_positive_correctly_rejected_bad": 0,
+      "true_negative_correctly_approved_good": 1,
+      "false_positive_wrongly_approved_bad": 12,
+      "false_negative_wrongly_rejected_good": 0,
+      "false_positive_rate": 0.9230769230769231,
+      "false_negative_rate": null,
+      "accuracy": 0.07692307692307693,
+      "malformed_or_unparseable_reviewer_outputs": 0,
+      "total_reviewer_calls": 13
+    },
+    "Configuration B (Planner/Coder/Reviewer all distinct weights)": {
+      "n": 9,
+      "true_positive_correctly_rejected_bad": 1,
+      "true_negative_correctly_approved_good": 3,
+      "false_positive_wrongly_approved_bad": 5,
+      "false_negative_wrongly_rejected_good": 0,
+      "false_positive_rate": 0.625,
+      "false_negative_rate": 0.0,
+      "accuracy": 0.4444444444444444,
+      "malformed_or_unparseable_reviewer_outputs": 0,
+      "total_reviewer_calls": 9
+    }
+  },
+  "reviewer_final_ground_truth_agreement": {
+    "Configuration A (3-role, Planner=Reviewer shared weights)": {
+      "n": 6,
+      "true_positive_correctly_rejected_bad": 0,
+      "true_negative_correctly_approved_good": 6,
+      "false_positive_wrongly_approved_bad": 0,
+      "false_negative_wrongly_rejected_good": 0,
+      "false_positive_rate": 0.0,
+      "false_negative_rate": null,
+      "accuracy": 1.0,
+      "excluded_tasks_no_ground_truth_or_no_reviewer_call": 4
+    },
+    "Configuration B (Planner/Coder/Reviewer all distinct weights)": {
+      "n": 6,
+      "true_positive_correctly_rejected_bad": 1,
+      "true_negative_correctly_approved_good": 3,
+      "false_positive_wrongly_approved_bad": 2,
+      "false_negative_wrongly_rejected_good": 0,
+      "false_positive_rate": 0.4,
+      "false_negative_rate": 0.0,
+      "accuracy": 0.6666666666666666,
+      "excluded_tasks_no_ground_truth_or_no_reviewer_call": 4
+    }
+  },
+  "stall_detection": {
+    "Configuration A (3-role, Planner=Reviewer shared weights)": {
+      "escalations": 7,
+      "reasons": [
+        "the same validation failure recurred - no progress detected",
+        "clarification loop exceeded 1 rounds",
+        "the same validation failure recurred - no progress detected",
+        "the same validation failure recurred - no progress detected",
+        "the same validation failure recurred - no progress detected",
+        "the same validation failure recurred - no progress detected",
+        "the same validation failure recurred - no progress detected"
+      ]
+    },
+    "Configuration B (Planner/Coder/Reviewer all distinct weights)": {
+      "escalations": 5,
+      "reasons": [
+        "planner output invalid after max retries",
+        "the same validation failure recurred - no progress detected",
+        "planner output invalid after max retries",
+        "clarification loop exceeded 1 rounds",
+        "the same validation failure recurred - no progress detected"
+      ]
+    }
+  }
+}
