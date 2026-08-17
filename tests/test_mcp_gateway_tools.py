@@ -8,6 +8,7 @@ from agent_platform.mcp.gateway_tools import (
     register_mcp_capabilities,
 )
 from agent_platform.mcp.mock_transport import MockMCPTransport
+from agent_platform.mcp.preferences import MCPUserPreferences
 from agent_platform.mcp.schemas import MCPServerConfig
 from agent_platform.security.enums import Role, SessionMode, ToolPermission
 from agent_platform.security.permission import PermissionEvaluator
@@ -97,6 +98,22 @@ def test_register_mcp_capabilities_wires_registry_and_returns_grants(tmp_path):
                           session_mode=SessionMode.AUTO, project_root=(workspace / "MyProj").resolve())
     assert obs.status == "ok"
     assert obs.result["data"] == {"ok": True}
+
+
+def test_user_preferences_narrow_registered_tool_specs_never_expand():
+    config, client = _server_and_client(capabilities=("search", "fetch"))
+    preferences = MCPUserPreferences()
+    preferences.set_capability_enabled("mock-docs", "fetch", False)
+    specs = build_mcp_tool_specs(config, client, preferences)
+    assert {s.name for s in specs} == {"mcp.mock-docs.search"}
+
+
+def test_user_preferences_disabling_server_removes_all_grants():
+    config, client = _server_and_client(capabilities=("search", "fetch"))
+    preferences = MCPUserPreferences()
+    preferences.set_enabled("mock-docs", False)
+    grants = build_mcp_permission_grants(config, client, (Role.PLANNER,), preferences)
+    assert grants == {}
 
 
 def test_unregistered_mcp_capability_is_unknown_tool_at_the_gateway(tmp_path):

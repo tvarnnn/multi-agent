@@ -9,8 +9,37 @@ import re
 from pathlib import Path
 from typing import Optional
 
-_SKIP_DIR_NAMES = {".git", "__pycache__", ".pytest_cache", ".venv", "node_modules"}
+from ..security.enums import OperatingMode
+
+_SKIP_DIR_NAMES = {".git", "__pycache__", ".pytest_cache", ".venv", "node_modules",
+                    ".ssh", ".aws", ".gnupg"}
 _TEST_PREFIX = "test_"
+
+# Structural exclusion, not content scanning (see mcp/secrets.py's docstring
+# for the analogous MCP-side principle) - a fixed, auditable list of
+# filenames/extensions that conventionally hold credentials, never a
+# pattern-matching "does this look like a secret" heuristic. Excluding
+# these from the discovered tree means they can never be referenced,
+# read, or become part of any role's ContextBundle - build_context_bundle
+# only ever reads paths that are already in this tree.
+_SENSITIVE_FILE_EXACT_NAMES = {
+    ".env", ".npmrc", ".netrc", ".pypirc", "credentials", "credentials.json",
+    "secrets.json", "secrets.yaml", "secrets.yml",
+    "id_rsa", "id_dsa", "id_ecdsa", "id_ed25519",
+}
+_SENSITIVE_FILE_SUFFIXES = (".pem", ".key", ".pfx", ".p12", ".ppk")
+_SENSITIVE_FILE_NAME_PREFIX = ".env."
+
+
+def is_sensitive_path(name: str) -> bool:
+    lower = name.lower()
+    if lower in _SENSITIVE_FILE_EXACT_NAMES:
+        return True
+    if lower.startswith(_SENSITIVE_FILE_NAME_PREFIX):
+        return True
+    if lower.endswith(_SENSITIVE_FILE_SUFFIXES):
+        return True
+    return False
 _CONFIG_NAMES = {
     "pyproject.toml", "setup.py", "setup.cfg", "tox.ini", "mypy.ini",
     ".flake8", "pytest.ini", "package.json",
@@ -63,26 +92,29 @@ def resolve_import_to_path(import_name: str, tree: list) -> Optional[str]:
     return None
 
 
-def walk_project_tree(gateway, role, session_mode, project_root, max_depth: int) -> list:
+def walk_project_tree(gateway, role, session_mode, project_root, max_depth: int,
+                       operating_mode: OperatingMode = OperatingMode.CODE) -> list:
     results: list = []
-    _walk(gateway, role, session_mode, project_root, "", max_depth, results)
+    _walk(gateway, role, session_mode, project_root, "", max_depth, results, operating_mode)
     return results
 
 
-def _walk(gateway, role, session_mode, project_root, rel_dir: str, remaining_depth: int, results: list) -> None:
+def _walk(gateway, role, session_mode, project_root, rel_dir: str, remaining_depth: int, results: list,
+          operating_mode: OperatingMode = OperatingMode.CODE) -> None:
     if remaining_depth < 0:
         return
     list_path = rel_dir if rel_dir else "."
     obs = gateway.invoke(role=role, tool_name="filesystem.list", arguments={"path": list_path},
-                          session_mode=session_mode, project_root=project_root)
+                          session_mode=session_mode, project_root=project_root,
+                          operating_mode=operating_mode)
     if obs.status != "ok":
         return
     for name in obs.result["entries"]:
-        if name in _SKIP_DIR_NAMES or name.endswith(".egg-info"):
+        if name in _SKIP_DIR_NAMES or name.endswith(".egg-info") or is_sensitive_path(name):
             continue
         rel_path = f"{rel_dir}/{name}" if rel_dir else name
         full = Path(project_root) / rel_path
         if full.is_dir():
-            _walk(gateway, role, session_mode, project_root, rel_path, remaining_depth - 1, results)
+            _walk(gateway, role, session_mode, project_root, rel_path, remaining_depth - 1, results, operating_mode)
         else:
             results.append(rel_path)

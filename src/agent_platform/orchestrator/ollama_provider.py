@@ -18,8 +18,24 @@ from dataclasses import dataclass
 from typing import Callable, Optional
 
 from .fake_model import ModelTimeoutError
-from .ollama_schemas import CODER_SCHEMA, PLANNER_SCHEMA, REVIEWER_SCHEMA
-from .prompts import build_coder_prompt, build_planner_prompt, build_reviewer_prompt
+from .ollama_schemas import (
+    CHAT_SCHEMA,
+    CODER_SCHEMA,
+    PLANNER_PLAN_MODE_SCHEMA,
+    PLANNER_SCHEMA,
+    REVIEWER_PLAN_CRITIQUE_SCHEMA,
+    REVIEWER_SCHEMA,
+    REVIEW_SESSION_SCHEMA,
+)
+from .prompts import (
+    build_chat_prompt,
+    build_coder_prompt,
+    build_planner_plan_mode_prompt,
+    build_planner_prompt,
+    build_reviewer_plan_critique_prompt,
+    build_reviewer_prompt,
+    build_review_session_prompt,
+)
 
 
 class OllamaTransportError(Exception):
@@ -68,6 +84,28 @@ class OllamaModelProvider:
 
     def review(self, context: dict) -> dict:
         return self._invoke(self._reviewer_model, build_reviewer_prompt(context), REVIEWER_SCHEMA)
+
+    # ------------------------------------------------- Phase 9/12 (Planning Mode)
+    #
+    # Added in Phase 12 - Phase 9 added these four to the ModelProvider
+    # protocol but never wired a real-model implementation; a live
+    # end-to-end test caught the AttributeError. Same _invoke() call shape
+    # as the three methods above - Planner keeps its planner_model for
+    # Chat Mode (Chat Mode is a Planner-role capability, matching
+    # security/mode_policy.py's CHAT allowed_roles={PLANNER}), Reviewer
+    # keeps its reviewer_model for Review Mode.
+    def plan_mode(self, context: dict) -> dict:
+        return self._invoke(self._planner_model, build_planner_plan_mode_prompt(context), PLANNER_PLAN_MODE_SCHEMA)
+
+    def review_plan(self, context: dict) -> dict:
+        return self._invoke(self._reviewer_model, build_reviewer_plan_critique_prompt(context),
+                             REVIEWER_PLAN_CRITIQUE_SCHEMA)
+
+    def chat(self, context: dict) -> dict:
+        return self._invoke(self._planner_model, build_chat_prompt(context), CHAT_SCHEMA)
+
+    def review_session(self, context: dict) -> dict:
+        return self._invoke(self._reviewer_model, build_review_session_prompt(context), REVIEW_SESSION_SCHEMA)
 
     def _ensure_loaded(self, model_name: str) -> None:
         """Explicitly unload a different previously-loaded model before

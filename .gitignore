@@ -8,7 +8,25 @@ __pycache__/
 .coverage
 htmlcov/
 .env
+.env.*
 .idea/
 .vscode/
 Thumbs.db
 .DS_Store
+
+# Phase 10 - local persistence/context-management artifacts. This is Git
+# hygiene only, not the security boundary: content exclusion from model
+# context (context/discovery.py's is_sensitive_path) and from persisted
+# storage (persistence/*_store.py's redaction allowlists) is enforced by
+# the platform itself, independently of what Git does or doesn't track.
+.agent/agent.db
+.agent/context/
+.agent/state/
+
+# Phase 12 - VS Code extension build/test artifacts. Source (vscode-extension/src,
+# vscode-extension/test) is tracked; everything below is generated or downloaded.
+vscode-extension/node_modules/
+vscode-extension/out/
+vscode-extension/.vscode-test/
+vscode-extension/*.vsix
+vscode-extension/test-fixtures/sample-workspace/.agent/

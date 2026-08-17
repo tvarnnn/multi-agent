@@ -63,3 +63,66 @@ REVIEWER_SCHEMA: dict = {
     },
     "required": ["spec_version_label", "decision", "requirements_met", "security_ok", "validation_ok"],
 }
+
+# Phase 12: Planning Mode schemas - added when a real live end-to-end test
+# discovered OllamaModelProvider never got these four methods when Phase 9
+# added them to the ModelProvider protocol. Same flat-object-with-optional-
+# fields pattern as the three schemas above; parse_planner_plan_output/
+# parse_reviewer_plan_output/parse_chat_output/parse_review_session_output
+# (plan_schemas.py) still independently enforce which fields are actually
+# required for a given "kind" - this is the syntactic half only.
+
+PLANNER_PLAN_MODE_SCHEMA: dict = {
+    "type": "object",
+    "properties": {
+        "kind": {"type": "string", "enum": ["plan", "needs_user_input", "research_request"]},
+        "objective": {"type": "string"},
+        "requirements": {"type": "array", "items": {"type": "string"}},
+        "existing_context": {"type": "array", "items": {"type": "string"}},
+        "proposed_architecture": {"type": "string"},
+        "files_to_create": {"type": "array", "items": {"type": "string"}},
+        "files_to_modify": {"type": "array", "items": {"type": "string"}},
+        "dependencies": {"type": "array", "items": {"type": "string"}},
+        "implementation_steps": {"type": "array", "items": {"type": "string"}},
+        "validation_strategy": {"type": "array", "items": {"type": "string"}},
+        "risks": {"type": "array", "items": {"type": "string"}},
+        "unknowns": {"type": "array", "items": {"type": "string"}},
+        "acceptance_criteria": {"type": "array", "items": {"type": "string"}},
+        "question": {"type": "string"},
+        "requests": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {"capability": {"type": "string"}, "query": {"type": "string"}},
+                "required": ["capability", "query"],
+            },
+        },
+    },
+    "required": ["kind"],
+}
+
+REVIEWER_PLAN_CRITIQUE_SCHEMA: dict = {
+    "type": "object",
+    "properties": {
+        "comments": {"type": "array", "items": {"type": "string"}},
+        "missing_requirements": {"type": "array", "items": {"type": "string"}},
+        "security_concerns": {"type": "array", "items": {"type": "string"}},
+        "unnecessary_complexity": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["comments", "missing_requirements", "security_concerns", "unnecessary_complexity"],
+}
+
+CHAT_SCHEMA: dict = {
+    "type": "object",
+    "properties": {"message": {"type": "string"}},
+    "required": ["message"],
+}
+
+REVIEW_SESSION_SCHEMA: dict = {
+    "type": "object",
+    "properties": {
+        "summary": {"type": "string"},
+        "findings": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["summary", "findings"],
+}

@@ -9,6 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
+from ..security.enums import OperatingMode
 from .bundle import ContextBundle, ContextFile
 from .discovery import classify_file, extract_imports, parse_changed_files, resolve_import_to_path, walk_project_tree
 from .limits import ContextLimits, DEFAULT_LIMITS, estimate_tokens
@@ -18,9 +19,11 @@ _PRIORITY = {"referenced": 0, "changed": 1, "dependency": 2, "test": 3,
              "config": 4, "documentation": 5, "tree": 6}
 
 
-def _read_file(gateway, role, session_mode, project_root, path, limits):
+def _read_file(gateway, role, session_mode, project_root, path, limits,
+                operating_mode: OperatingMode = OperatingMode.CODE):
     obs = gateway.invoke(role=role, tool_name="filesystem.read", arguments={"path": path},
-                          session_mode=session_mode, project_root=project_root)
+                          session_mode=session_mode, project_root=project_root,
+                          operating_mode=operating_mode)
     if obs.status != "ok":
         return None, False
     content = obs.result["content"]
@@ -35,13 +38,16 @@ def _read_file(gateway, role, session_mode, project_root, path, limits):
 def build_context_bundle(*, gateway, role, session_mode, project_root: Path,
                           reference_hints: tuple, include_git_changes: bool = True,
                           limits: ContextLimits = DEFAULT_LIMITS,
-                          cache: Optional[ContextCache] = None) -> ContextBundle:
-    tree = walk_project_tree(gateway, role, session_mode, project_root, limits.max_retrieval_depth)
+                          cache: Optional[ContextCache] = None,
+                          operating_mode: OperatingMode = OperatingMode.CODE) -> ContextBundle:
+    tree = walk_project_tree(gateway, role, session_mode, project_root, limits.max_retrieval_depth,
+                              operating_mode=operating_mode)
 
     changed_files: tuple = ()
     if include_git_changes:
         status_obs = gateway.invoke(role=role, tool_name="git.status", arguments={},
-                                     session_mode=session_mode, project_root=project_root)
+                                     session_mode=session_mode, project_root=project_root,
+                                     operating_mode=operating_mode)
         if status_obs.status == "ok" and status_obs.result.get("scoped"):
             changed_files = parse_changed_files(status_obs.result["output"])
 
@@ -58,7 +64,7 @@ def build_context_bundle(*, gateway, role, session_mode, project_root: Path,
     seed_paths = sorted(candidates.keys())
     dependency_paths = []
     for seed in seed_paths:
-        content, _ = _read_file(gateway, role, session_mode, project_root, seed, limits)
+        content, _ = _read_file(gateway, role, session_mode, project_root, seed, limits, operating_mode)
         if content is None:
             continue
         for name in extract_imports(content):
@@ -98,7 +104,8 @@ def build_context_bundle(*, gateway, role, session_mode, project_root: Path,
         if path == "__tree__":
             content = "\n".join(sorted(tree))
         else:
-            content, truncated_flag = _read_file(gateway, role, session_mode, project_root, path, limits)
+            content, truncated_flag = _read_file(gateway, role, session_mode, project_root, path, limits,
+                                                  operating_mode)
             if content is None:
                 excluded.append(path)
                 continue

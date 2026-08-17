@@ -17,11 +17,13 @@ an extra capability cannot get a tool registered for it.
 from __future__ import annotations
 
 import json
+from typing import Optional
 
 from ..security.enums import Role, ToolPermission
 from ..tools.registry import ToolRegistry
 from ..tools.schemas import ToolArgumentError, ToolExecutionContext, ToolSpec
 from .client import MCPClient
+from .preferences import MCPUserPreferences, narrow_capabilities
 from .schemas import MCPServerConfig
 from .secrets import redact_secret_string, redact_secrets
 
@@ -62,16 +64,24 @@ def _make_mcp_executor(client: MCPClient, capability: str, secrets: tuple):
     return execute
 
 
-def _usable_capabilities(server_config: MCPServerConfig, client: MCPClient) -> set:
+def _usable_capabilities(server_config: MCPServerConfig, client: MCPClient,
+                          preferences: Optional[MCPUserPreferences] = None) -> set:
     discovered = set(client.discover())
     allowed = set(server_config.capabilities)
-    return discovered & allowed
+    base = discovered & allowed
+    # User preferences are a pure narrowing overlay (mcp/preferences.py) -
+    # discovery ∩ trusted config already established `base`; a preference
+    # can only remove from it, never add to it.
+    if preferences is None:
+        return base
+    return narrow_capabilities(server_config.server_id, base, preferences)
 
 
-def build_mcp_tool_specs(server_config: MCPServerConfig, client: MCPClient) -> list:
+def build_mcp_tool_specs(server_config: MCPServerConfig, client: MCPClient,
+                          preferences: Optional[MCPUserPreferences] = None) -> list:
     secrets = (server_config.credential,) if server_config.credential else ()
     specs = []
-    for capability in sorted(_usable_capabilities(server_config, client)):
+    for capability in sorted(_usable_capabilities(server_config, client, preferences)):
         specs.append(ToolSpec(
             name=f"mcp.{server_config.server_id}.{capability}",
             validate_arguments=_validate_mcp_arguments,
@@ -83,9 +93,9 @@ def build_mcp_tool_specs(server_config: MCPServerConfig, client: MCPClient) -> l
 
 
 def build_mcp_permission_grants(server_config: MCPServerConfig, client: MCPClient,
-                                 roles: tuple) -> dict:
+                                 roles: tuple, preferences: Optional[MCPUserPreferences] = None) -> dict:
     grants = {}
-    for capability in _usable_capabilities(server_config, client):
+    for capability in _usable_capabilities(server_config, client, preferences):
         tool_name = f"mcp.{server_config.server_id}.{capability}"
         for role in roles:
             grants[(role, tool_name)] = ToolPermission.ALLOW
@@ -93,11 +103,12 @@ def build_mcp_permission_grants(server_config: MCPServerConfig, client: MCPClien
 
 
 def register_mcp_capabilities(registry: ToolRegistry, server_configs: tuple,
-                               clients: dict, roles: tuple) -> dict:
+                               clients: dict, roles: tuple,
+                               preferences: Optional[MCPUserPreferences] = None) -> dict:
     grants: dict = {}
     for server_config in server_configs:
         client = clients[server_config.server_id]
-        for spec in build_mcp_tool_specs(server_config, client):
+        for spec in build_mcp_tool_specs(server_config, client, preferences):
             registry.register(spec)
-        grants.update(build_mcp_permission_grants(server_config, client, roles))
+        grants.update(build_mcp_permission_grants(server_config, client, roles, preferences))
     return grants

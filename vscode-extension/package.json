@@ -1,0 +1,143 @@
+{
+  "name": "agent-platform-vscode",
+  "displayName": "Agent Platform",
+  "description": "Local-first autonomous SWE agent platform - VS Code client. A thin client over the Agent Platform Python backend; all orchestration, permissions, sandboxing, MCP, persistence, and configuration remain server-side.",
+  "version": "1.0.0",
+  "publisher": "agent-platform",
+  "private": true,
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onView:agentPlatform.sidebar"
+  ],
+  "main": "./out/src/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "agentPlatform",
+          "title": "Agent Platform",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "agentPlatform": [
+        {
+          "id": "agentPlatform.sidebar",
+          "name": "Agent Platform"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "agentPlatform.startBackend",
+        "title": "Agent Platform: Start Backend"
+      },
+      {
+        "command": "agentPlatform.stopBackend",
+        "title": "Agent Platform: Stop Backend"
+      },
+      {
+        "command": "agentPlatform.createSession",
+        "title": "Agent Platform: New Session"
+      },
+      {
+        "command": "agentPlatform.openSession",
+        "title": "Agent Platform: Open Session"
+      },
+      {
+        "command": "agentPlatform.resumeSession",
+        "title": "Agent Platform: Resume Session"
+      },
+      {
+        "command": "agentPlatform.archiveSession",
+        "title": "Agent Platform: Archive Session"
+      },
+      {
+        "command": "agentPlatform.refreshSessions",
+        "title": "Agent Platform: Refresh Sessions"
+      },
+      {
+        "command": "agentPlatform.openPlanArtifact",
+        "title": "Agent Platform: Open Plan Artifact"
+      },
+      {
+        "command": "agentPlatform.revealPlanArtifact",
+        "title": "Agent Platform: Reveal Plan Artifact in Explorer"
+      },
+      {
+        "command": "agentPlatform.openConfiguration",
+        "title": "Agent Platform: Show Configuration"
+      },
+      {
+        "command": "agentPlatform.editMcpPreferences",
+        "title": "Agent Platform: Edit MCP Server Preferences"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "agentPlatform.createSession",
+          "when": "view == agentPlatform.sidebar",
+          "group": "navigation"
+        },
+        {
+          "command": "agentPlatform.refreshSessions",
+          "when": "view == agentPlatform.sidebar",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "agentPlatform.resumeSession",
+          "when": "view == agentPlatform.sidebar && viewItem == session"
+        },
+        {
+          "command": "agentPlatform.archiveSession",
+          "when": "view == agentPlatform.sidebar && viewItem == session"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Agent Platform",
+      "properties": {
+        "agentPlatform.pythonPath": {
+          "type": "string",
+          "default": "python",
+          "description": "Python interpreter used to spawn the Agent Platform backend (managed connection mode)."
+        },
+        "agentPlatform.backendUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Connect to an already-running backend at this URL instead of spawning one (external connection mode). Leave empty to use the managed (spawned) backend."
+        },
+        "agentPlatform.backendToken": {
+          "type": "string",
+          "default": "",
+          "description": "Bearer token for an external backend (only used when agentPlatform.backendUrl is set). Never stored anywhere but VS Code's own settings storage - prefer the managed connection mode when possible."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile",
+    "test": "node ./out/test/runTest.js",
+    "package": "vsce package --out agent-platform-vscode.vsix"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^20.0.0",
+    "@types/mocha": "^10.0.0",
+    "@vscode/test-electron": "^2.3.9",
+    "@vscode/vsce": "^2.24.0",
+    "mocha": "^10.3.0",
+    "typescript": "^5.4.0"
+  }
+}

@@ -22,12 +22,15 @@ class _GitStatusStubbedGateway:
         self._scripted = scripted_status_output
         self.event_log = real_gateway.event_log
 
-    def invoke(self, *, role, tool_name, arguments, session_mode, project_root):
+    def invoke(self, *, role, tool_name, arguments, session_mode, project_root, operating_mode=None):
         if tool_name == "git.status":
             return ToolObservation(status="ok", tool_name="git.status",
                                     result={"scoped": True, "output": self._scripted}, error=None)
-        return self._real.invoke(role=role, tool_name=tool_name, arguments=arguments,
-                                  session_mode=session_mode, project_root=project_root)
+        kwargs = dict(role=role, tool_name=tool_name, arguments=arguments,
+                       session_mode=session_mode, project_root=project_root)
+        if operating_mode is not None:
+            kwargs["operating_mode"] = operating_mode
+        return self._real.invoke(**kwargs)
 
 
 def _real_gateway(workspace):
@@ -52,6 +55,36 @@ def test_directly_referenced_file_is_retrieved(tmp_path):
                                    project_root=proj.resolve(), reference_hints=("update app.py to log more",))
     paths = {f.path for f in bundle.files}
     assert "app.py" in paths
+
+
+def test_dotenv_secret_file_never_reaches_model_facing_context_even_when_referenced(tmp_path):
+    """SECRET FILE -> project retrieval -> excluded (structural, per Phase
+    10's secret-handling requirement). A .env file present in the project
+    - even one an unwary reference_hint would otherwise match - must never
+    appear in any role's ContextBundle, because it's excluded at the tree
+    walk before any candidate-selection logic runs."""
+    proj = _workspace(tmp_path)
+    (proj / "app.py").write_text("print('hi')", encoding="utf-8")
+    (proj / ".env").write_text("API_KEY=sk-live-supersecret\nDB_PASSWORD=hunter2\n", encoding="utf-8")
+    gateway = _real_gateway(proj.parent)
+    bundle = build_context_bundle(gateway=gateway, role=Role.CODER, session_mode=SessionMode.AUTO,
+                                   project_root=proj.resolve(), reference_hints=(".env", "API_KEY", "app.py"))
+    paths = {f.path for f in bundle.files}
+    assert ".env" not in paths
+    assert not any("sk-live-supersecret" in f.content for f in bundle.files)
+
+
+def test_credential_file_never_reaches_model_facing_context_for_any_role(tmp_path):
+    proj = _workspace(tmp_path)
+    (proj / "app.py").write_text("print('hi')", encoding="utf-8")
+    (proj / "credentials.json").write_text('{"api_key": "sk-live-supersecret"}', encoding="utf-8")
+    gateway = _real_gateway(proj.parent)
+    for role in (Role.PLANNER, Role.CODER, Role.REVIEWER):
+        bundle = build_context_bundle(gateway=gateway, role=role, session_mode=SessionMode.AUTO,
+                                       project_root=proj.resolve(), reference_hints=("credentials.json",))
+        paths = {f.path for f in bundle.files}
+        assert "credentials.json" not in paths
+        assert not any("sk-live-supersecret" in f.content for f in bundle.files)
 
 
 def test_unrelated_file_is_excluded(tmp_path):

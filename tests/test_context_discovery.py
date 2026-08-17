@@ -2,6 +2,7 @@ from agent_platform.events import EventLog
 from agent_platform.context.discovery import (
     classify_file,
     extract_imports,
+    is_sensitive_path,
     parse_changed_files,
     resolve_import_to_path,
     walk_project_tree,
@@ -103,3 +104,71 @@ def test_walk_project_tree_respects_max_depth(tmp_path):
     gateway = ToolGateway(build_default_registry(), evaluator, EventLog())
     tree = walk_project_tree(gateway, Role.PLANNER, SessionMode.AUTO, tmp_path, max_depth=0)
     assert "a/b/c/deep.py" not in tree
+
+
+# ---------------------------------- sensitive-file exclusion (structural)
+
+def test_is_sensitive_path_matches_dotenv_and_variants():
+    assert is_sensitive_path(".env")
+    assert is_sensitive_path(".env.local")
+    assert is_sensitive_path(".env.production")
+
+
+def test_is_sensitive_path_matches_credential_and_key_files():
+    assert is_sensitive_path("id_rsa")
+    assert is_sensitive_path("id_ed25519")
+    assert is_sensitive_path("credentials.json")
+    assert is_sensitive_path("secrets.yaml")
+    assert is_sensitive_path(".npmrc")
+    assert is_sensitive_path(".netrc")
+    assert is_sensitive_path("server.pem")
+    assert is_sensitive_path("private.key")
+
+
+def test_is_sensitive_path_is_case_insensitive():
+    assert is_sensitive_path(".ENV")
+    assert is_sensitive_path("ID_RSA")
+
+
+def test_is_sensitive_path_does_not_flag_ordinary_files():
+    assert not is_sensitive_path("main.py")
+    assert not is_sensitive_path("id_rsa.pub")  # public key - not secret
+    assert not is_sensitive_path("environment.py")
+    assert not is_sensitive_path("keyboard.py")
+
+
+def test_walk_project_tree_excludes_dotenv_file(tmp_path):
+    (tmp_path / "app.py").write_text("x = 1", encoding="utf-8")
+    (tmp_path / ".env").write_text("API_KEY=sk-supersecret", encoding="utf-8")
+    (tmp_path / ".env.local").write_text("DB_PASSWORD=hunter2", encoding="utf-8")
+    sandbox = FilesystemSandbox(tmp_path.parent)
+    evaluator = PermissionEvaluator(sandbox)
+    gateway = ToolGateway(build_default_registry(), evaluator, EventLog())
+    tree = walk_project_tree(gateway, Role.PLANNER, SessionMode.AUTO, tmp_path, max_depth=6)
+    assert "app.py" in tree
+    assert ".env" not in tree
+    assert ".env.local" not in tree
+
+
+def test_walk_project_tree_excludes_ssh_directory_entirely(tmp_path):
+    ssh_dir = tmp_path / ".ssh"
+    ssh_dir.mkdir()
+    (ssh_dir / "id_rsa").write_text("-----BEGIN PRIVATE KEY-----", encoding="utf-8")
+    sandbox = FilesystemSandbox(tmp_path.parent)
+    evaluator = PermissionEvaluator(sandbox)
+    gateway = ToolGateway(build_default_registry(), evaluator, EventLog())
+    tree = walk_project_tree(gateway, Role.PLANNER, SessionMode.AUTO, tmp_path, max_depth=6)
+    assert not any(".ssh" in p for p in tree)
+
+
+def test_walk_project_tree_excludes_credential_files_in_subdirectories(tmp_path):
+    sub = tmp_path / "config"
+    sub.mkdir()
+    (sub / "credentials.json").write_text('{"key": "secret"}', encoding="utf-8")
+    (sub / "settings.py").write_text("DEBUG = True", encoding="utf-8")
+    sandbox = FilesystemSandbox(tmp_path.parent)
+    evaluator = PermissionEvaluator(sandbox)
+    gateway = ToolGateway(build_default_registry(), evaluator, EventLog())
+    tree = walk_project_tree(gateway, Role.PLANNER, SessionMode.AUTO, tmp_path, max_depth=6)
+    assert "config/settings.py" in tree
+    assert "config/credentials.json" not in tree

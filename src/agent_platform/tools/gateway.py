@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Optional
 
 from ..events import EventLog, EventType
-from ..security.enums import Role, SessionMode, ToolPermission
+from ..security.enums import OperatingMode, Role, SessionMode, ToolPermission
 from ..security.permission import PermissionEvaluator, ToolCall
 from .registry import ToolRegistry
 from .schemas import ToolArgumentError, ToolExecutionContext, ToolPreconditionError
@@ -46,7 +46,8 @@ class ToolGateway:
         self.event_log = event_log
 
     def invoke(self, *, role: Role, tool_name: str, arguments: dict,
-               session_mode: SessionMode, project_root: Path) -> ToolObservation:
+               session_mode: SessionMode, project_root: Path,
+               operating_mode: OperatingMode = OperatingMode.CODE) -> ToolObservation:
         # 1. schema validation
         spec = self._registry.get(tool_name)
         if spec is None:
@@ -62,7 +63,7 @@ class ToolGateway:
         # 2. permission evaluation (role x session-mode x DENY-absolute x sandboxed path)
         path_argument = validated_args.get(spec.path_argument_key) if spec.path_argument_key else None
         call = ToolCall(role=role, tool_name=tool_name, path_argument=path_argument, scope_root=project_root)
-        decision = self._evaluator.evaluate(call, session_mode)
+        decision = self._evaluator.evaluate(call, session_mode, operating_mode=operating_mode)
         if decision.permission == ToolPermission.DENY:
             return self._finish(role, tool_name, arguments, ToolObservation(
                 status="denied", tool_name=tool_name, result=None, error=decision.reason))

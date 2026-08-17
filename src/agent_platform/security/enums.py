@@ -22,3 +22,15 @@ class ToolPermission(Enum):
     ALLOW = "ALLOW"
     CONFIRM = "CONFIRM"
     DENY = "DENY"
+
+
+class OperatingMode(Enum):
+    """What kind of session this is - orthogonal to Role (who's acting)
+    and SessionMode (how much approval friction applies). Immutable for
+    the lifetime of one Orchestrator instance; switching modes means
+    starting a new session, never mutating this value in place."""
+    CHAT = "CHAT"
+    PLAN = "PLAN"
+    CODE = "CODE"
+    EDIT = "EDIT"
+    REVIEW = "REVIEW"

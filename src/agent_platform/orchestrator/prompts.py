@@ -96,3 +96,95 @@ def build_reviewer_prompt(context: dict) -> str:
         "booleans, and issues (a list of {severity, file, description, required_fix} "
         "objects, empty if none)."
     )
+
+
+# ----------------------------------------------------------- Phase 9 (Planning Mode)
+#
+# Added in Phase 12, when a real live end-to-end test discovered these were
+# never written for a real model - only FakeModelProvider ever exercised
+# Planning Mode. Same "only read the fields this role's context dict
+# actually has" discipline as the three builders above.
+
+def _format_context_bundle(bundle) -> str:
+    if not bundle.files:
+        return "(no project context retrieved)"
+    return "\n\n".join(f"--- {f.path} ({f.category}) ---\n{f.content}" for f in bundle.files)
+
+
+def build_planner_plan_mode_prompt(context: dict) -> str:
+    request = context["request"]
+    bundle = context["context_bundle"]
+    parts = [
+        "You are the Planner for an autonomous software engineering platform, running in "
+        "Planning Mode: you produce a structured implementation plan for human review before "
+        "any code is written - you do not write code yourself.\n\n"
+        f"User request: {request}\n\n"
+        f"Project context:\n{_format_context_bundle(bundle)}\n\n"
+    ]
+    if "previous_plan" in context:
+        p = context["previous_plan"]
+        parts.append(
+            f"Current draft objective: {p.objective}\n"
+            f"Revision request: {context.get('revision_request', '')}\n\n"
+        )
+    if context.get("research_observations"):
+        obs = "\n".join(
+            f"- {o['capability']} ({o['query']}): {o['status']}" for o in context["research_observations"]
+        )
+        parts.append(f"Research already performed:\n{obs}\n\n")
+    parts.append(
+        'If you have enough information, respond with kind "plan" and a complete structured '
+        "plan: objective, requirements, existing_context, proposed_architecture, "
+        "files_to_create, files_to_modify, dependencies, implementation_steps, "
+        "validation_strategy, risks, unknowns, and acceptance_criteria (all as lists of short "
+        "strings except objective/proposed_architecture, which are single strings). If a "
+        'genuine product decision is missing, respond with kind "needs_user_input" and a '
+        "single clear question. Only if you need to look something up via an available "
+        'research capability, respond with kind "research_request" and a list of '
+        "{capability, query} objects."
+    )
+    return "".join(parts)
+
+
+def build_reviewer_plan_critique_prompt(context: dict) -> str:
+    plan = context["plan"]
+    return (
+        "You are the Reviewer for an autonomous software engineering platform, critiquing a "
+        "Planner's draft plan before a human sees it. You do not approve or block anything - "
+        "your feedback is advisory only.\n\n"
+        f"Objective: {plan.objective}\n"
+        f"Requirements: {list(plan.requirements)}\n"
+        f"Proposed architecture: {plan.proposed_architecture}\n"
+        f"Files to create: {list(plan.files_to_create)}\n"
+        f"Files to modify: {list(plan.files_to_modify)}\n"
+        f"Acceptance criteria: {list(plan.acceptance_criteria)}\n\n"
+        "Respond with comments, missing_requirements, security_concerns, and "
+        "unnecessary_complexity, each a list of short strings (empty lists if you have nothing "
+        "to add in that category)."
+    )
+
+
+def build_chat_prompt(context: dict) -> str:
+    message = context["message"]
+    bundle = context["context_bundle"]
+    return (
+        "You are the Planner for an autonomous software engineering platform, in Chat Mode: a "
+        "read-only conversational assistant. You cannot write files or run commands here.\n\n"
+        f"Project context:\n{_format_context_bundle(bundle)}\n\n"
+        f"User message: {message}\n\n"
+        "Respond with a single field, message, containing your reply as a string."
+    )
+
+
+def build_review_session_prompt(context: dict) -> str:
+    target = context["target"]
+    bundle = context["context_bundle"]
+    return (
+        "You are the Reviewer for an autonomous software engineering platform, in Review Mode: "
+        "asked to review something specific on request, independent of any active "
+        "implementation task.\n\n"
+        f"Review target: {target}\n\n"
+        f"Project context:\n{_format_context_bundle(bundle)}\n\n"
+        "Respond with summary (a short string) and findings (a list of short strings, empty if "
+        "none)."
+    )
